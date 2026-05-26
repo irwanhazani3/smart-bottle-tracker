@@ -1,0 +1,134 @@
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+#include <HX711.h>
+#include <Preferences.h> 
+
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+const int LOADCELL_DOUT_PIN = 2; 
+const int LOADCELL_SCK_PIN = 3;  
+const int LED_PIN = 8; 
+
+HX711 scale;
+BLECharacteristic *pCharacteristic;
+Preferences preferences; 
+
+bool deviceConnected = false;
+bool requestTare = false; // VARIABEL BARU: Sistem antrean Tare
+float calibration_factor = 1093.4; 
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      digitalWrite(LED_PIN, LOW); 
+      Serial.println("Aplikasi Android Terhubung!");
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      digitalWrite(LED_PIN, HIGH); 
+      pServer->getAdvertising()->start(); 
+      Serial.println("Koneksi terputus. Broadcast ulang...");
+    }
+};
+
+class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      String rxValue = String(pCharacteristic->getValue().c_str());
+
+      if (rxValue.length() > 0) {
+        if (rxValue == "TARE") {
+          // JANGAN lakukan scale.tare() di sini, cukup nyalakan bendera peringatan
+          requestTare = true; 
+          Serial.println("Perintah TARE masuk! Menunggu antrean yang aman...");
+        }
+      }
+    }
+};
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH); 
+
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+  scale.set_scale(calibration_factor);
+  
+  Serial.println("Menunggu sensor HX711 pemanasan...");
+  delay(1000); // FIX ERROR BOOTING: Beri waktu 1 detik agar HX711 siap
+  
+  if (scale.is_ready()) {
+    preferences.begin("smartbottle", false);
+    long savedOffset = preferences.getLong("tare_offset", 0);
+    
+    if (savedOffset == 0) {
+      scale.tare();
+      preferences.putLong("tare_offset", scale.get_offset());
+      Serial.println("Tare awal dibuat dan disimpan.");
+    } else {
+      scale.set_offset(savedOffset);
+      Serial.println("Data Tare lama berhasil dimuat dari memori!");
+    }
+    preferences.end();
+  } else {
+    Serial.println("Error: Kabel sensor masih bermasalah atau belum terhubung.");
+  }
+
+  BLEDevice::init("ESP32_SmartBottle"); 
+  BLEServer *pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  pCharacteristic = pService->createCharacteristic(
+                      CHARACTERISTIC_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_WRITE
+                    );
+
+  pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+  pCharacteristic->addDescriptor(new BLE2902());
+
+  pService->start();
+  pServer->getAdvertising()->start();
+  Serial.println("Sistem Siap!");
+}
+
+void loop() {
+  // 1. Cek apakah ada antrean permintaan Tare dari HP?
+  if (requestTare) {
+    if (scale.is_ready()) {
+      scale.tare(); 
+      
+      long newOffset = scale.get_offset();
+      preferences.begin("smartbottle", false);
+      preferences.putLong("tare_offset", newOffset);
+      preferences.end();
+      
+      requestTare = false; // Matikan bendera antrean
+      Serial.println(">> Timbangan berhasil di-TARE dan Disimpan Permanen! <<");
+    }
+  }
+
+  // 2. Baca berat seperti biasa (Jangan baca jika sedang proses Tare)
+  if (deviceConnected && !requestTare) {
+    if (scale.is_ready()) {
+      int beratGram = round(scale.get_units(5));
+      if (beratGram < 0) beratGram = 0; // Cegah minus
+      
+      String dataKirim = String(beratGram);
+      pCharacteristic->setValue(dataKirim.c_str());
+      pCharacteristic->notify(); 
+    }
+    delay(500); 
+  } else if (!deviceConnected) {
+    digitalWrite(LED_PIN, LOW);
+    delay(500);
+    digitalWrite(LED_PIN, HIGH);
+    delay(500);
+  }
+}
