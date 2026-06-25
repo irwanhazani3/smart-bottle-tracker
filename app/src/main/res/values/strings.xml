@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Smart Bottle</string>
+    <string name="scan_and_connect">Scan &amp; Connect</string>
+    <string name="settings">Pengaturan</string>
+    <string name="bottle_weight">Berat Botol Saat Ini</string>
+    <string name="default_weight">0.0 gram</string>
+    <string name="tare">Tare Timbangan (Set 0)</string>
+    <string name="daily_progress">Progres Harian</string>
+    <string name="default_intake">0 ml</string>
+    <string name="target_display">Target: 2000 ml</string>
+    <string name="add_manual">Tambah Manual</string>
+    <string name="last_drink_default">Terakhir minum: Belum ada</string>
+    <string name="sync">Sync</string>
+</resources>

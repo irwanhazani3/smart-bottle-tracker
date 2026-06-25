@@ -1,0 +1,19 @@
+<resources xmlns:tools="http://schemas.annotation.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.SmartBottle" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <item name="colorPrimary">@color/blue_primary</item>
+        <item name="colorPrimaryContainer">@color/blue_primary_container</item>
+        <item name="colorSecondary">@color/blue_secondary</item>
+        <item name="colorTertiary">@color/blue_tertiary</item>
+        <item name="android:windowBackground">@color/bg_light</item>
+        <item name="colorSurface">@color/surface_light</item>
+        <item name="colorOnBackground">@color/text_light_primary</item>
+        <item name="colorOnSurface">@color/text_light_primary</item>
+        <item name="colorOnSurfaceVariant">@color/text_light_secondary</item>
+        <item name="android:statusBarColor">@color/bg_light</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+    </style>
+
+    <style name="Theme.SmartBottle" parent="Base.Theme.SmartBottle" />
+</resources>
